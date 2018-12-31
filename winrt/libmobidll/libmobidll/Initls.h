@@ -4,7 +4,7 @@ class Initls
 {
 public:
 	const std::initializer_list<unsigned>& list;
-	constexpr Initls(const std::initializer_list<unsigned>& ls) :list(ls) {
+	constexpr Initls(const std::initializer_list<unsigned>& ls) noexcept :list(ls)  {
 	};
 };
 

@@ -293,6 +293,7 @@
     <ClInclude Include="memory.h" />
     <ClInclude Include="meta.h" />
     <ClInclude Include="mobi.h" />
+    <ClInclude Include="ModernStream.h" />
     <ClInclude Include="opf.h" />
     <ClInclude Include="parse_rawml.h" />
     <ClInclude Include="pch.h" />
@@ -314,6 +315,7 @@
     <ClCompile Include="Initls.cpp" />
     <ClCompile Include="memory.cpp" />
     <ClCompile Include="meta.cpp" />
+    <ClCompile Include="ModernStream.cpp" />
     <ClCompile Include="opf.cpp" />
     <ClCompile Include="parse_rawml.cpp" />
     <ClCompile Include="pch.cpp">
