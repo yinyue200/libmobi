@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tga;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="buffer.cpp" />
+    <ClCompile Include="compression.cpp" />
+    <ClCompile Include="debug.cpp" />
+    <ClCompile Include="index.cpp" />
+    <ClCompile Include="memory.cpp" />
+    <ClCompile Include="meta.cpp" />
+    <ClCompile Include="opf.cpp" />
+    <ClCompile Include="parse_rawml.cpp" />
+    <ClCompile Include="read.cpp" />
+    <ClCompile Include="sha1.cpp" />
+    <ClCompile Include="structure.cpp" />
+    <ClCompile Include="util.cpp" />
+    <ClCompile Include="write.cpp" />
+    <ClCompile Include="xmlwriter.cpp" />
+    <ClCompile Include="Initls.cpp" />
+    <ClCompile Include="encryption.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="buffer.h" />
+    <ClInclude Include="compression.h" />
+    <ClInclude Include="config.h" />
+    <ClInclude Include="debug.h" />
+    <ClInclude Include="encryption.h" />
+    <ClInclude Include="index.h" />
+    <ClInclude Include="memory.h" />
+    <ClInclude Include="meta.h" />
+    <ClInclude Include="mobi.h" />
+    <ClInclude Include="opf.h" />
+    <ClInclude Include="parse_rawml.h" />
+    <ClInclude Include="read.h" />
+    <ClInclude Include="sha1.h" />
+    <ClInclude Include="structure.h" />
+    <ClInclude Include="util.h" />
+    <ClInclude Include="write.h" />
+    <ClInclude Include="xmlwriter.h" />
+    <ClInclude Include="Initls.h" />
+  </ItemGroup>
+</Project>
