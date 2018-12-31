@@ -907,5 +907,5 @@ MOBI_RET mobi_load_filename(MOBIData *m, const char *path) {
     }
     //const MOBI_RET ret = mobi_load_file(m, file);
     fclose(file);
-    return MOBI_RET(0);
+    return ret;
 }
