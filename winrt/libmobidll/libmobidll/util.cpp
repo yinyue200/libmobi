@@ -21,6 +21,7 @@
 #include "parse_rawml.h"
 #include "index.h"
 #include "debug.h"
+#include "../../zlibwrapperrt/zlibwrapperrt.h"
 
 #ifdef USE_ENCRYPTION
 #include "encryption.h"
@@ -2386,8 +2387,8 @@ MOBI_RET mobi_decode_font_resource(unsigned char **decoded_font, size_t *decoded
     const unsigned long encoded_size = buf->maxlen - buf->offset;
     if (h.flags & zlib_flag) {
         /* unpack */
-        int ret = m_uncompress(*decoded_font, (unsigned long *) decoded_size, encoded_font, encoded_size);
-        if (ret != M_OK) {
+        int ret = zbwp::uncompress(*decoded_font, (unsigned long *) decoded_size, encoded_font, encoded_size);
+        if (ret != zbwp::M_OK) {
             buffer_free(buf);
             free(*decoded_font);
             debug_print("%s", "Font resource decompression failed\n");

@@ -31,6 +31,7 @@
 #include "debug.h"
 #include "sha1.h"
 #include "encryption.h"
+#include "../../zlibwrapperrt/zlibwrapperrt.h"
 
 #define KEYVEC1 ((unsigned char*) "\x72\x38\x33\xb0\xb4\xf2\xe3\xca\xdf\x09\x01\xd6\xe2\xe0\x3f\x96")
 #define KEYVEC1_V1 ((unsigned char*) "QDCVEPMU675RUBSZ")
@@ -427,7 +428,7 @@ MOBI_RET mobi_drm_decrypt_buffer(unsigned char *out, const unsigned char *in, co
 static void mobi_drm_pidchecksum(char checksum[2], const unsigned char *pid) {
     const char map[] = "ABCDEFGHIJKLMNPQRSTUVWXYZ123456789";
     const uint8_t map_length = sizeof(map) - 1;
-    uint32_t crc = (uint32_t) ~m_crc32(0xffffffff, pid, PIDSIZE - 2);
+    auto crc = (uint32_t) ~(zbwp::tcrc32(0xffffffff, pid, PIDSIZE - 2));
     crc ^= (crc >> 16);
     for (size_t i = 0; i < 2; i++){
         uint8_t b = crc & 0xff;
@@ -473,7 +474,8 @@ static MOBI_RET mobi_drm_devicepid_from_serial(char pid[PIDSIZE + 1], const char
         out_length--;
         pid[out_length] = '*';
     }
-    uint32_t crc = (uint32_t) ~m_crc32(0xffffffff, (const unsigned char *) serial, (unsigned int) serial_length);
+	
+    uint32_t crc = (uint32_t) ~zbwp::tcrc32(0xffffffff, (const unsigned char *) serial, (unsigned int) serial_length);
     for (size_t i = 0; i < serial_length; i++) {
         out[i % out_length] ^= serial[i];
     }

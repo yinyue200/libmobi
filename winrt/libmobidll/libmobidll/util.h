@@ -29,10 +29,7 @@
 #define m_crc32 mz_crc32
 #define M_OK MZ_OK
 #else
-#include <zlib.h>
-#define m_uncompress uncompress
-#define m_crc32 crc32
-#define M_OK Z_OK
+//#define M_OK Z_OK
 #endif
 
 
@@ -131,7 +128,7 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#define ARRAYSIZE(arr) (sizeof(arr) / sizeof(arr[0]))
+//#define ARRAYSIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define MOBI_TITLE_SIZEMAX 1024
 
