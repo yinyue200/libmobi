@@ -18,6 +18,7 @@
 #include "index.h"
 #include "debug.h"
 #include <ModernStream.h>
+#include <CFileStream.h>
 
 /**
  @brief Read palm database header from file into MOBIData structure (MOBIPdbHeader)
@@ -905,7 +906,7 @@ MOBI_RET mobi_load_filename(MOBIData *m, const char *path) {
         debug_print("%s", "File not found\n");
         return MOBI_FILE_NOT_FOUND;
     }
-    //const MOBI_RET ret = mobi_load_file(m, file);
+    const MOBI_RET ret = mobi_load_file(m, &Libmobi::CFileStream(file));
     fclose(file);
     return ret;
 }

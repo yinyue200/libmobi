@@ -26,6 +26,7 @@
     <ClCompile Include="Initls.cpp" />
     <ClCompile Include="encryption.cpp" />
     <ClCompile Include="ModernStream.cpp" />
+    <ClCompile Include="CFileStream.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -49,5 +50,6 @@
     <ClInclude Include="xmlwriter.h" />
     <ClInclude Include="Initls.h" />
     <ClInclude Include="ModernStream.h" />
+    <ClInclude Include="CFileStream.h" />
   </ItemGroup>
 </Project>
