@@ -531,6 +531,7 @@ MOBI_EXPORT bool mobi_is_encrypted(const MOBIData *m);
 MOBI_EXPORT bool mobi_is_mobipocket(const MOBIData *m);
 MOBI_EXPORT bool mobi_is_dictionary(const MOBIData *m);
 MOBI_EXPORT bool mobi_is_kf8(const MOBIData *m);
+MOBI_EXPORT bool mobi_is_replica(const MOBIData* m);
 MOBI_EXPORT bool mobi_is_rawml_kf8(const MOBIRawml *rawml);
 MOBI_EXPORT MOBIRawml * mobi_init_rawml(const MOBIData *m);
 MOBI_EXPORT void mobi_free_rawml(MOBIRawml *rawml);

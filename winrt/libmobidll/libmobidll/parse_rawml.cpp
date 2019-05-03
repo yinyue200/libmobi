@@ -467,33 +467,54 @@ MOBI_RET mobi_get_aid_by_offset(char *aid, const MOBIPart *html, const size_t of
     return MOBI_SUCCESS;
 }
 
+auto getattrstr(MOBIAttrType pref_attr) {
+	switch (pref_attr)
+	{
+	case ATTR_ID:
+		return "id";
+	case ATTR_NAME:
+		return "name";
+	default:
+		return "";
+	}
+}
+
 /**
- @brief Get value of the closest "id" attribute following given offset in a given part
- 
- @param[in,out] id String value of "id" attribute
+ @brief Get value of the closest "id" or "name" attribute following given offset in a given part
+
+ @param[in,out] id String value of found attribute
  @param[in] html MOBIPart html part
  @param[in] offset Offset from the beginning of the part data
+ @param[in,out] pref_attr Preferred attribute to link to (id or name)
  @return MOBI_RET status code (on success MOBI_SUCCESS)
  */
-MOBI_RET mobi_get_id_by_offset(char *id, const MOBIPart *html, const size_t offset) {
-    if (!id || !html) {
-        debug_print("Parameter error (id (%p), html (%p)\n", (void *) id, (void *) html);
-        return MOBI_PARAM_ERR;
-    }
-    if (offset > html->size) {
-        debug_print("Parameter error: offset (%zu) > part size (%zu)\n", offset, html->size);
-        return MOBI_PARAM_ERR;
-    }
-    const unsigned char *data = html->data;
-    data += offset;
-    size_t length = html->size - offset;
-    
-    size_t off = mobi_get_attribute_value(id, data, length, "id", true);
-    if (off == SIZE_MAX) {
-        id[0] = '\0';
-        //return MOBI_DATA_CORRUPT;
-    }
-    return MOBI_SUCCESS;
+MOBI_RET mobi_get_id_by_offset(char* id, const MOBIPart* html, const size_t offset, MOBIAttrType* pref_attr) {
+	if (!id || !html) {
+		debug_print("Parameter error (id (%p), html (%p)\n", (void*)id, (void*)html);
+		return MOBI_PARAM_ERR;
+	}
+	if (offset > html->size) {
+		debug_print("Parameter error: offset (%zu) > part size (%zu)\n", offset, html->size);
+		return MOBI_PARAM_ERR;
+	}
+	const unsigned char* data = html->data;
+	data += offset;
+	size_t length = html->size - offset;
+
+	size_t off = mobi_get_attribute_value(id, data, length, getattrstr(*pref_attr), true);
+	if (off == SIZE_MAX) {
+		// try optional attribute
+		const MOBIAttrType opt_attr = (*pref_attr == ATTR_ID) ? ATTR_NAME : ATTR_ID;
+		off = mobi_get_attribute_value(id, data, length, getattrstr(opt_attr), true);
+		if (off == SIZE_MAX) {
+			id[0] = '\0';
+		}
+		else {
+			// save optional attribute as preferred
+			*pref_attr = opt_attr;
+		}
+	}
+	return MOBI_SUCCESS;
 }
 
 /**
@@ -525,29 +546,30 @@ MOBI_RET mobi_get_aid_by_posoff(uint32_t *file_number, char *aid, const MOBIRawm
 
 /**
  @brief Convert kindle:pos:fid:x:off:y to html file number and closest "id" attribute following the position
- 
+
  @param[in,out] file_number Will be set to file number value
  @param[in,out] id String value of "id" attribute
  @param[in] rawml MOBIRawml parsed records structure
  @param[in] pos_fid X value of pos:fid:x
  @param[in] pos_off Y value of off:y
+ @param[in,out] pref_attr Attribute to link to
  @return MOBI_RET status code (on success MOBI_SUCCESS)
  */
-MOBI_RET mobi_get_id_by_posoff(uint32_t *file_number, char *id, const MOBIRawml *rawml, const size_t pos_fid, const size_t pos_off) {
-    size_t offset;
-    MOBI_RET ret = mobi_get_offset_by_posoff(file_number, &offset, rawml, pos_fid, pos_off);
-    if (ret != MOBI_SUCCESS) {
-        return MOBI_DATA_CORRUPT;
-    }
-    const MOBIPart *html = mobi_get_part_by_uid(rawml, *file_number);
-    if (html == NULL) {
-        return MOBI_DATA_CORRUPT;
-    }
-    ret = mobi_get_id_by_offset(id, html, offset);
-    if (ret != MOBI_SUCCESS) {
-        return MOBI_DATA_CORRUPT;
-    }
-    return MOBI_SUCCESS;
+MOBI_RET mobi_get_id_by_posoff(uint32_t* file_number, char* id, const MOBIRawml* rawml, const size_t pos_fid, const size_t pos_off, MOBIAttrType* pref_attr) {
+	size_t offset;
+	MOBI_RET ret = mobi_get_offset_by_posoff(file_number, &offset, rawml, pos_fid, pos_off);
+	if (ret != MOBI_SUCCESS) {
+		return MOBI_DATA_CORRUPT;
+	}
+	const MOBIPart* html = mobi_get_part_by_uid(rawml, *file_number);
+	if (html == NULL) {
+		return MOBI_DATA_CORRUPT;
+	}
+	ret = mobi_get_id_by_offset(id, html, offset, pref_attr);
+	if (ret != MOBI_SUCCESS) {
+		return MOBI_DATA_CORRUPT;
+	}
+	return MOBI_SUCCESS;
 }
 
 /**
@@ -1021,299 +1043,305 @@ MOBI_RET mobi_get_ncx_filepos_array(MOBIArray *links, const MOBIRawml *rawml) {
     }
     return MOBI_SUCCESS;
 }
-
 /**
  @brief Replace kindle:pos link with html href
- 
+
  @param[in,out] link Memory area which will be filled with "part00000.html#customid", including quotation marks
  @param[in] rawml Structure rawml
  @param[in] value String kindle:pos:fid:0000:off:0000000000, without quotation marks
+ @param[in,out] pref_attr Preferred attribute to link to (id or name)
  @return MOBI_RET status code (on success MOBI_SUCCESS)
  */
-MOBI_RET mobi_posfid_to_link(char *link, const MOBIRawml *rawml, const char *value) {
-    /* "kindle:pos:fid:0000:off:0000000000" */
-    /* extract fid and off */
-    if (strlen(value) < (sizeof("kindle:pos:fid:0000:off:0000000000") - 1)) {
-        debug_print("Skipping too short link: %s\n", value);
-        *link = '\0';
-        return MOBI_SUCCESS;
-    }
-    value += (sizeof("kindle:pos:fid:") - 1);
-    if (value[4] != ':') {
-        debug_print("Skipping malformed link: kindle:pos:fid:%s\n", value);
-        *link = '\0';
-        return MOBI_SUCCESS;
-    }
-    char str_fid[4 + 1];
-    strncpy(str_fid, value, 4);
-    str_fid[4] = '\0';
-    char str_off[10 + 1];
-    value += (sizeof("0001:off:") - 1);
-    strncpy(str_off, value, 10);
-    str_off[10] = '\0';
-    
-    /* get file number and id value */
-    uint32_t pos_off, pos_fid;
-    MOBI_RET ret = mobi_base32_decode(&pos_off, str_off);
-    if (ret != MOBI_SUCCESS) {
-        return ret;
-    }
-    ret = mobi_base32_decode(&pos_fid, str_fid);
-    if (ret != MOBI_SUCCESS) {
-        return ret;
-    }
-    uint32_t part_id;
-    char id[MOBI_ATTRVALUE_MAXSIZE + 1];
-    ret = mobi_get_id_by_posoff(&part_id, id, rawml, pos_fid, pos_off);
-    if (ret != MOBI_SUCCESS) {
-        return ret;
-    }
-    /* FIXME: pos_off == 0 means top of file? */
-    if (pos_off) {
-        snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html#%s\"", part_id, id);
-    } else {
-        snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html\"", part_id);
-    }
-    return MOBI_SUCCESS;
+MOBI_RET mobi_posfid_to_link(char* link, const MOBIRawml* rawml, const char* value, MOBIAttrType* pref_attr) {
+	/* "kindle:pos:fid:0000:off:0000000000" */
+	/* extract fid and off */
+	if (strlen(value) < (sizeof("kindle:pos:fid:0000:off:0000000000") - 1)) {
+		debug_print("Skipping too short link: %s\n", value);
+		*link = '\0';
+		return MOBI_SUCCESS;
+	}
+	value += (sizeof("kindle:pos:fid:") - 1);
+	if (value[4] != ':') {
+		debug_print("Skipping malformed link: kindle:pos:fid:%s\n", value);
+		*link = '\0';
+		return MOBI_SUCCESS;
+	}
+	char str_fid[4 + 1];
+	strncpy(str_fid, value, 4);
+	str_fid[4] = '\0';
+	char str_off[10 + 1];
+	value += (sizeof("0001:off:") - 1);
+	strncpy(str_off, value, 10);
+	str_off[10] = '\0';
+
+	/* get file number and id value */
+	uint32_t pos_off, pos_fid;
+	MOBI_RET ret = mobi_base32_decode(&pos_off, str_off);
+	if (ret != MOBI_SUCCESS) {
+		return ret;
+	}
+	ret = mobi_base32_decode(&pos_fid, str_fid);
+	if (ret != MOBI_SUCCESS) {
+		return ret;
+	}
+	uint32_t part_id;
+	char id[MOBI_ATTRVALUE_MAXSIZE + 1];
+	ret = mobi_get_id_by_posoff(&part_id, id, rawml, pos_fid, pos_off, pref_attr);
+	if (ret != MOBI_SUCCESS) {
+		return ret;
+	}
+	/* FIXME: pos_off == 0 means top of file? */
+	if (pos_off) {
+		snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html#%s\"", part_id, id);
+	}
+	else {
+		snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html\"", part_id);
+	}
+	return MOBI_SUCCESS;
 }
 
 /**
  @brief Replace kindle:flow link with html href
- 
+
  @param[in,out] link Memory area which will be filled with "part00000.ext", including quotation marks
  @param[in] rawml Structure rawml
  @param[in] value String kindle:flow:0000?mime=type, without quotation marks
  @return MOBI_RET status code (on success MOBI_SUCCESS)
  */
-MOBI_RET mobi_flow_to_link(char *link, const MOBIRawml *rawml, const char *value) {
-    /* "kindle:flow:0000?mime=" */
-    *link = '\0';
-    if (strlen(value) < (sizeof("kindle:flow:0000?mime=") - 1)) {
-        debug_print("Skipping too short link: %s\n", value);
-        return MOBI_SUCCESS;
-    }
-    value += (sizeof("kindle:flow:") - 1);
-    if (value[4] != '?') {
-        debug_print("Skipping broken link: kindle:flow:%s\n", value);
-        return MOBI_SUCCESS;
-    }
-    char str_fid[4 + 1];
-    strncpy(str_fid, value, 4);
-    str_fid[4] = '\0';
-    
-    MOBIPart *flow = mobi_get_flow_by_fid(rawml, str_fid);
-    if (flow == NULL) {
-        debug_print("Skipping broken link (missing resource): kindle:flow:%s\n", value);
-        return MOBI_SUCCESS;
-    }
-    MOBIFileMeta meta = mobi_get_filemeta_by_type(flow->type);
-    char *extension = meta.extension;
-    snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"flow%05zu.%s\"", flow->uid, extension);
-    return MOBI_SUCCESS;
+MOBI_RET mobi_flow_to_link(char* link, const MOBIRawml* rawml, const char* value) {
+	/* "kindle:flow:0000?mime=" */
+	*link = '\0';
+	if (strlen(value) < (sizeof("kindle:flow:0000?mime=") - 1)) {
+		debug_print("Skipping too short link: %s\n", value);
+		return MOBI_SUCCESS;
+	}
+	value += (sizeof("kindle:flow:") - 1);
+	if (value[4] != '?') {
+		debug_print("Skipping broken link: kindle:flow:%s\n", value);
+		return MOBI_SUCCESS;
+	}
+	char str_fid[4 + 1];
+	strncpy(str_fid, value, 4);
+	str_fid[4] = '\0';
+
+	MOBIPart* flow = mobi_get_flow_by_fid(rawml, str_fid);
+	if (flow == NULL) {
+		debug_print("Skipping broken link (missing resource): kindle:flow:%s\n", value);
+		return MOBI_SUCCESS;
+	}
+	MOBIFileMeta meta = mobi_get_filemeta_by_type(flow->type);
+	char* extension = meta.extension;
+	snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"flow%05zu.%s\"", flow->uid, extension);
+	return MOBI_SUCCESS;
 }
 
 /**
  @brief Replace kindle:embed link with html href
- 
+
  @param[in,out] link Memory area which will be filled with "resource00000.ext", including quotation marks
  @param[in] rawml Structure rawml
  @param[in] value String kindle:embed:0000?mime=type, with optional quotation marks
  @return MOBI_RET status code (on success MOBI_SUCCESS)
  */
-MOBI_RET mobi_embed_to_link(char *link, const MOBIRawml *rawml, const char *value) {
-    /* "kindle:embed:0000[?mime=]" */
-    /* skip quotation marks or spaces */
-    while (*value == '"' || *value == '\'' || isspace(*value)) {
-        value++;
-    }
-    *link = '\0';
-    if (strlen(value) < (sizeof("kindle:embed:0000") - 1)) {
-        debug_print("Skipping too short link: %s\n", value);
-        return MOBI_SUCCESS;
-    }
-    value += (sizeof("kindle:embed:") - 1);
-    char str_fid[4 + 1];
-    strncpy(str_fid, value, 4);
-    str_fid[4] = '\0';
-    
-    /* get file number */
-    uint32_t part_id;
-    MOBI_RET ret = mobi_base32_decode(&part_id, str_fid);
-    if (ret != MOBI_SUCCESS) {
-        debug_print("Skipping broken link (corrupt base32): kindle:embed:%s\n", value);
-        return MOBI_SUCCESS;
-    }
-    part_id--;
-    MOBIPart *resource = mobi_get_resource_by_uid(rawml, part_id);
-    if (resource == NULL) {
-        debug_print("Skipping broken link (missing resource): kindle:embed:%s\n", value);
-        return MOBI_SUCCESS;
-    }
-    MOBIFileMeta meta = mobi_get_filemeta_by_type(resource->type);
-    char *extension = meta.extension;
-    snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"resource%05u.%s\"", part_id, extension);
-    return MOBI_SUCCESS;
+MOBI_RET mobi_embed_to_link(char* link, const MOBIRawml* rawml, const char* value) {
+	/* "kindle:embed:0000[?mime=]" */
+	/* skip quotation marks or spaces */
+	while (*value == '"' || *value == '\'' || isspace(*value)) {
+		value++;
+	}
+	*link = '\0';
+	if (strlen(value) < (sizeof("kindle:embed:0000") - 1)) {
+		debug_print("Skipping too short link: %s\n", value);
+		return MOBI_SUCCESS;
+	}
+	value += (sizeof("kindle:embed:") - 1);
+	char str_fid[4 + 1];
+	strncpy(str_fid, value, 4);
+	str_fid[4] = '\0';
+
+	/* get file number */
+	uint32_t part_id;
+	MOBI_RET ret = mobi_base32_decode(&part_id, str_fid);
+	if (ret != MOBI_SUCCESS) {
+		debug_print("Skipping broken link (corrupt base32): kindle:embed:%s\n", value);
+		return MOBI_SUCCESS;
+	}
+	part_id--;
+	MOBIPart* resource = mobi_get_resource_by_uid(rawml, part_id);
+	if (resource == NULL) {
+		debug_print("Skipping broken link (missing resource): kindle:embed:%s\n", value);
+		return MOBI_SUCCESS;
+	}
+	MOBIFileMeta meta = mobi_get_filemeta_by_type(resource->type);
+	char* extension = meta.extension;
+	snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"resource%05u.%s\"", part_id, extension);
+	return MOBI_SUCCESS;
 }
 
 /**
  @brief Replace offset-links with html-links in KF8 markup
- 
+
  @param[in,out] rawml Structure rawml will be filled with reconstructed parts and resources
  @return MOBI_RET status code (on success MOBI_SUCCESS)
  */
-MOBI_RET mobi_reconstruct_links_kf8(const MOBIRawml *rawml) {
-    MOBIResult result;
-    
-    typedef struct NEWData {
-        size_t part_group;
-        size_t part_uid;
-        MOBIFragment *list;
-        size_t size;
-        struct NEWData *next;
-    } NEWData;
-    
-    NEWData *partdata = NULL;
-    NEWData *curdata = NULL;
-    MOBIPart *parts[] = {
-        rawml->markup, /* html files */
-        rawml->flow->next /* css, skip first unparsed html part */
-    };
-    size_t i;
-    for (i = 0; i < 2; i++) {
-        MOBIPart *part = parts[i];
-        while (part) {
-            unsigned char *data_in = part->data;
-            result.start = part->data;
-            const unsigned char *data_end = part->data + part->size - 1;
-            MOBIFragment *first = NULL;
-            MOBIFragment *curr = NULL;
-            size_t part_size = 0;
-            while (true) {
-                mobi_search_links_kf8(&result, result.start, data_end, part->type);
-                if (result.start == NULL) {
-                    break;
-                }
-                char *value = (char *) result.value;
-                unsigned char *data_cur = result.start;
-                char *target = NULL;
-                if (data_cur < data_in) {
-                    mobi_list_del_all(first);
-                    return MOBI_DATA_CORRUPT;
-                }
-                size_t size = (size_t) (data_cur - data_in);
-                char link[MOBI_ATTRVALUE_MAXSIZE + 1];
-                if ((target = strstr(value, "kindle:pos:fid:")) != NULL) {
-                    /* "kindle:pos:fid:0001:off:0000000000" */
-                    /* replace link with href="part00000.html#00" */
-                    /* FIXME: this requires present target id tag */
-                    MOBI_RET ret = mobi_posfid_to_link(link, rawml, target);
-                    if (ret != MOBI_SUCCESS) {
-                        mobi_list_del_all(first);
-                        return ret;
-                    }
-                } else if ((target = strstr(value, "kindle:flow:")) != NULL) {
-                    /* kindle:flow:0000?mime=text/css */
-                    /* replace link with href="flow00000.ext" */
-                    MOBI_RET ret = mobi_flow_to_link(link, rawml, target);
-                    if (ret != MOBI_SUCCESS) {
-                        mobi_list_del_all(first);
-                        return ret;
-                    }
-                } else if ((target = strstr(value, "kindle:embed:")) != NULL) {
-                    /* kindle:embed:0000?mime=image/jpg */
-                    /* kindle:embed:0000 (font resources) */
-                    /* replace link with href="resource00000.ext" */
-                    MOBI_RET ret = mobi_embed_to_link(link, rawml, target);
-                    if (ret != MOBI_SUCCESS) {
-                        mobi_list_del_all(first);
-                        return ret;
-                    }
-                }
-                if (target && *link != '\0') {
-                    /* first chunk */
-                    curr = mobi_list_add(curr, (size_t) (data_in - part->data), data_in, size, false);
-                    if (curr == NULL) {
-                        mobi_list_del_all(first);
-                        debug_print("%s\n", "Memory allocation failed");
-                        return MOBI_MALLOC_FAILED;
-                    }
-                    if (!first) { first = curr; }
-                    part_size += curr->size;
-                    /* second chunk */
-                    /* strip quotes if is_url */
-                    curr = mobi_list_add(curr, SIZE_MAX,
-                                         (unsigned char *) strdup(link + result.is_url),
-                                         strlen(link) - 2 * result.is_url, true);
-                    if (curr == NULL) {
-                        mobi_list_del_all(first);
-                        debug_print("%s\n", "Memory allocation failed");
-                        return MOBI_MALLOC_FAILED;
-                    }
-                    part_size += curr->size;
-                    data_in = result.end;
-                }
-            }
-            if (first && first->fragment) {
-                /* last chunk */
-                if (part->data + part->size < data_in) {
-                    mobi_list_del_all(first);
-                    return MOBI_DATA_CORRUPT;
-                }
-                size_t size = (size_t) (part->data + part->size - data_in);
-                curr = mobi_list_add(curr, (size_t) (data_in - part->data), data_in, size, false);
-                if (curr == NULL) {
-                    mobi_list_del_all(first);
-                    debug_print("%s\n", "Memory allocation failed");
-                    return MOBI_MALLOC_FAILED;
-                }
-                part_size += curr->size;
-                /* save */
-                if (!curdata) {
-                    curdata = (NEWData*)calloc(1, sizeof(NEWData));
-                    partdata = curdata;
-                } else {
-                    curdata->next = (NEWData*)calloc(1, sizeof(NEWData));
-                    curdata = curdata->next;
-                }
-                curdata->part_group = i;
-                curdata->part_uid = part->uid;
-                curdata->list = first;
-                curdata->size = part_size;
-            }
-            part = part->next;
-        }
-    }
-    /* now update parts */
-    debug_print("Inserting links%s", "\n");
-    for (i = 0; i < 2; i++) {
-        MOBIPart *part = parts[i];
-        while (part) {
-            if (partdata && part->uid == partdata->part_uid && i == partdata->part_group) {
-                MOBIFragment *fragdata = partdata->list;
-                unsigned char *new_data = (unsigned char*)malloc(partdata->size);
-                if (new_data == NULL) {
-                    mobi_list_del_all(fragdata);
-                    debug_print("%s\n", "Memory allocation failed");
-                    return MOBI_MALLOC_FAILED;
-                }
-                unsigned char *data_out = new_data;
-                while (fragdata) {
-                    memcpy(data_out, fragdata->fragment, fragdata->size);
-                    data_out += fragdata->size;
-                    fragdata = mobi_list_del(fragdata);
-                }
-                free(part->data);
-                part->data = new_data;
-                part->size = partdata->size;
-                NEWData *partused = partdata;
-                partdata = partdata->next;
-                free(partused);
-            }
-            part = part->next;
-        }
-    }
-    return MOBI_SUCCESS;
+MOBI_RET mobi_reconstruct_links_kf8(const MOBIRawml* rawml) {
+	MOBIResult result;
+
+	typedef struct NEWData {
+		size_t part_group;
+		size_t part_uid;
+		MOBIFragment* list;
+		size_t size;
+		struct NEWData* next;
+	} NEWData;
+
+	NEWData* partdata = NULL;
+	NEWData* curdata = NULL;
+	MOBIPart* parts[] = {
+		rawml->markup, /* html files */
+		rawml->flow->next /* css, skip first unparsed html part */
+	};
+	size_t i;
+	for (i = 0; i < 2; i++) {
+		MOBIPart* part = parts[i];
+		while (part) {
+			unsigned char* data_in = part->data;
+			result.start = part->data;
+			const unsigned char* data_end = part->data + part->size - 1;
+			MOBIFragment* first = NULL;
+			MOBIFragment* curr = NULL;
+			size_t part_size = 0;
+			MOBIAttrType pref_attr = ATTR_ID;
+			while (true) {
+				mobi_search_links_kf8(&result, result.start, data_end, part->type);
+				if (result.start == NULL) {
+					break;
+				}
+				char* value = (char*)result.value;
+				unsigned char* data_cur = result.start;
+				char* target = NULL;
+				if (data_cur < data_in) {
+					mobi_list_del_all(first);
+					return MOBI_DATA_CORRUPT;
+				}
+				size_t size = (size_t)(data_cur - data_in);
+				char link[MOBI_ATTRVALUE_MAXSIZE + 1];
+				if ((target = strstr(value, "kindle:pos:fid:")) != NULL) {
+					/* "kindle:pos:fid:0001:off:0000000000" */
+					/* replace link with href="part00000.html#00" */
+					/* FIXME: this requires present target id or name attribute */
+					MOBI_RET ret = mobi_posfid_to_link(link, rawml, target, &pref_attr);
+					if (ret != MOBI_SUCCESS) {
+						mobi_list_del_all(first);
+						return ret;
+					}
+				}
+				else if ((target = strstr(value, "kindle:flow:")) != NULL) {
+					/* kindle:flow:0000?mime=text/css */
+					/* replace link with href="flow00000.ext" */
+					MOBI_RET ret = mobi_flow_to_link(link, rawml, target);
+					if (ret != MOBI_SUCCESS) {
+						mobi_list_del_all(first);
+						return ret;
+					}
+				}
+				else if ((target = strstr(value, "kindle:embed:")) != NULL) {
+					/* kindle:embed:0000?mime=image/jpg */
+					/* kindle:embed:0000 (font resources) */
+					/* replace link with href="resource00000.ext" */
+					MOBI_RET ret = mobi_embed_to_link(link, rawml, target);
+					if (ret != MOBI_SUCCESS) {
+						mobi_list_del_all(first);
+						return ret;
+					}
+				}
+				if (target && *link != '\0') {
+					/* first chunk */
+					curr = mobi_list_add(curr, (size_t)(data_in - part->data), data_in, size, false);
+					if (curr == NULL) {
+						mobi_list_del_all(first);
+						debug_print("%s\n", "Memory allocation failed");
+						return MOBI_MALLOC_FAILED;
+					}
+					if (!first) { first = curr; }
+					part_size += curr->size;
+					/* second chunk */
+					/* strip quotes if is_url */
+					curr = mobi_list_add(curr, SIZE_MAX,
+						(unsigned char*)strdup(link + result.is_url),
+						strlen(link) - 2 * result.is_url, true);
+					if (curr == NULL) {
+						mobi_list_del_all(first);
+						debug_print("%s\n", "Memory allocation failed");
+						return MOBI_MALLOC_FAILED;
+					}
+					part_size += curr->size;
+					data_in = result.end;
+				}
+			}
+			if (first && first->fragment) {
+				/* last chunk */
+				if (part->data + part->size < data_in) {
+					mobi_list_del_all(first);
+					return MOBI_DATA_CORRUPT;
+				}
+				size_t size = (size_t)(part->data + part->size - data_in);
+				curr = mobi_list_add(curr, (size_t)(data_in - part->data), data_in, size, false);
+				if (curr == NULL) {
+					mobi_list_del_all(first);
+					debug_print("%s\n", "Memory allocation failed");
+					return MOBI_MALLOC_FAILED;
+				}
+				part_size += curr->size;
+				/* save */
+				if (!curdata) {
+					curdata = (NEWData*)calloc(1, sizeof(NEWData));
+					partdata = curdata;
+				}
+				else {
+					curdata->next = (NEWData*)calloc(1, sizeof(NEWData));
+					curdata = curdata->next;
+				}
+				curdata->part_group = i;
+				curdata->part_uid = part->uid;
+				curdata->list = first;
+				curdata->size = part_size;
+			}
+			part = part->next;
+		}
+	}
+	/* now update parts */
+	debug_print("Inserting links%s", "\n");
+	for (i = 0; i < 2; i++) {
+		MOBIPart* part = parts[i];
+		while (part) {
+			if (partdata && part->uid == partdata->part_uid && i == partdata->part_group) {
+				MOBIFragment* fragdata = partdata->list;
+				unsigned char* new_data = (unsigned char*)malloc(partdata->size);
+				if (new_data == NULL) {
+					mobi_list_del_all(fragdata);
+					debug_print("%s\n", "Memory allocation failed");
+					return MOBI_MALLOC_FAILED;
+				}
+				unsigned char* data_out = new_data;
+				while (fragdata) {
+					memcpy(data_out, fragdata->fragment, fragdata->size);
+					data_out += fragdata->size;
+					fragdata = mobi_list_del(fragdata);
+				}
+				free(part->data);
+				part->data = new_data;
+				part->size = partdata->size;
+				NEWData* partused = partdata;
+				partdata = partdata->next;
+				free(partused);
+			}
+			part = part->next;
+		}
+	}
+	return MOBI_SUCCESS;
 }
+
 
 /**
  @brief Get infl index markup for given orth entry
