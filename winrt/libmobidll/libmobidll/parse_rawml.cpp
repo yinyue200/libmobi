@@ -948,8 +948,13 @@ MOBI_RET mobi_reconstruct_parts(MOBIRawml *rawml) {
         }
         char *p = skel_text;
         while (first_fragment) {
-            memcpy(p, first_fragment->fragment, first_fragment->size);
-            p += first_fragment->size;
+            if (first_fragment->fragment) {
+                memcpy(p, first_fragment->fragment, first_fragment->size);
+                p += first_fragment->size;
+            }
+            else {
+                debug_print("Skipping broken fragment in part %zu\n", i);
+            }
             first_fragment = mobi_list_del(first_fragment);
         }
         if (i > 0) {
@@ -1092,7 +1097,12 @@ MOBI_RET mobi_posfid_to_link(char* link, const MOBIRawml* rawml, const char* val
 	}
 	/* FIXME: pos_off == 0 means top of file? */
 	if (pos_off) {
-		snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html#%s\"", part_id, id);
+        int n = snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html#%s\"", part_id, id);
+        if (n > MOBI_ATTRVALUE_MAXSIZE + 1) {
+            debug_print("Skipping truncated link: %s\n", link);
+            *link = '\0';
+            return MOBI_SUCCESS;
+        }
 	}
 	else {
 		snprintf(link, MOBI_ATTRVALUE_MAXSIZE + 1, "\"part%05u.html\"", part_id);
@@ -1409,7 +1419,11 @@ MOBI_RET mobi_reconstruct_infl(char *outstring, const MOBIIndx *infl, const MOBI
             if (decoded_length == 0) {
                 continue;
             }
-            snprintf(infl_tag, INDX_INFLBUF_SIZEMAX, iform_tag, name_attr, decoded);
+            int n = snprintf(infl_tag, INDX_INFLBUF_SIZEMAX, iform_tag, name_attr, decoded);
+            if (n > INDX_INFLBUF_SIZEMAX) {
+                debug_print("Skipping truncated tag: %s\n", infl_tag);
+                continue;
+            }
             outlen += strlen(infl_tag);
             if (outlen > INDX_INFLTAG_SIZEMAX) {
                 debug_print("Inflections text in %s too long (%zu)\n", label, outlen);
