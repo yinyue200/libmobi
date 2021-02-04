@@ -5,7 +5,7 @@
  * @example mobimeta.c
  * Program for testing libmobi library
  *
- * Copyright (c) 2016 Bartek Fabiszewski
+ * Copyright (c) 2020 Bartek Fabiszewski
  * http://www.fabiszewski.net
  *
  * Licensed under LGPL, either version 3, or any later.
@@ -53,6 +53,12 @@ char *serial = NULL;
 #define META_SIZE ARRAYSIZE(meta_functions)
 #define ACTIONS_SIZE ARRAYSIZE(actions)
 
+#if HAVE_ATTRIBUTE_NORETURN 
+void exit_with_usage(const char *progname) __attribute__((noreturn));
+#else
+void exit_with_usage(const char *progname);
+#endif
+
 /**
  @brief Meta handling functions
  */
@@ -91,6 +97,7 @@ void exit_with_usage(const char *progname) {
     if (p) { progname = ++p; }
     printf("usage: %s [-a | -s meta=value[,meta=value,...]] [-d meta[,meta,...]]" PRINT_ENC_USG " [-v] filein [fileout]\n", progname);
     printf("       without arguments prints document metadata and exits\n");
+    printf("       -a ?           list valid meta named keys\n");
     printf("       -a meta=value  add metadata\n");
     printf("       -d meta        delete metadata\n");
     printf("       -s meta=value  set metadata\n");
@@ -246,7 +253,6 @@ int main(int argc, char *argv[]) {
                     printf("Unknown option character `\\x%x'\n", optopt);
                 }
                 exit_with_usage(argv[0]);
-                break;
             default:
                 exit_with_usage(argv[0]);
         }
@@ -296,7 +302,7 @@ int main(int argc, char *argv[]) {
         if (ret != SUCCESS) {
             mobi_free(m);
             return ret;
-        };
+        }
     }
 #endif
     
